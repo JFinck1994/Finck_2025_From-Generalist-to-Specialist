@@ -1,0 +1,313 @@
+---
+title: "Tab. S3: Permutational multivariate analysis of variance (PERMANOVA) of dissimilarities, based on Bray-Curtis dissimilarity of the (A) bacterial and (B) fungal functional composition."
+author: "Jessica Finck"
+date: "2025-05-12"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This script analyses the soil microbial communities functional repertoire based on functional predictions using PERMANOVA to assess which environmental parameters significantly affect soil microbial community functional repertoire.
+
+### Pre-processing: Preparing the `phyloseq` objects from raw data
+
+For this analysis we use `phyloseq` objects which we created from our PICRUSt2 and FungalTraits data, and metadata. We chose PICRUSt2 and FungalTraits specifically to get the most accurate functional predictions from our 16S rRNA and ITS gene data.
+
+First, we imported our data into R.
+
+```{r import, tidy=TRUE, message=FALSE, warning=FALSE, results='hide', echo=FALSE}
+library(phyloseq)
+library(readxl)
+library(dplyr)
+
+## import data tables 
+otu_bac <- read_excel("masterfile_bac.xlsx", sheet = "picrust_table") %>% as.data.frame()
+tax_bac <- read_excel("masterfile_bac.xlsx", sheet = "picrust_tax") %>% as.data.frame()
+data_bac <- read_excel("masterfile_bac.xlsx", sheet = "metadata_all") %>% as.data.frame()
+
+otu_fun <- read_excel("masterfile_fun.xlsx", sheet = "funtrait_table") %>% as.data.frame()
+tax_fun <- read_excel("masterfile_fun.xlsx", sheet = "funtrait_tax") %>% as.data.frame()
+data_fun <- read_excel("masterfile_fun.xlsx", sheet = "metadata_all") %>% as.data.frame()
+```
+
+Then, we formatted the variable classes.
+
+```{r format, tidy=TRUE, message=FALSE, warning=FALSE, results='hide', echo=FALSE}
+# bacteria 
+data_bac = data_bac %>% mutate(leg_num = leg)  
+data_bac$leg_num = gsub('yes', '1', data_bac$leg_num)
+data_bac$leg_num = gsub('no', '0', data_bac$leg_num)
+data_bac$leg_num <- as.numeric(data_bac$leg_num)
+
+data_bac = data_bac %>% mutate(gra_num = gra)  
+data_bac$gra_num = gsub('yes', '1', data_bac$gra_num)
+data_bac$gra_num = gsub('no', '0', data_bac$gra_num)
+data_bac$gra_num <- as.numeric(data_bac$gra_num)
+
+data_bac = data_bac %>% mutate(monocult_num = monocult)  
+data_bac$monocult_num = gsub('yes', '1', data_bac$monocult_num)
+data_bac$monocult_num = gsub('no', '0', data_bac$monocult_num)
+data_bac$monocult_num <- as.numeric(data_bac$monocult_num)
+
+data_bac = data_bac %>% mutate(plot_num = plot) 
+data_bac$plot_num <- as.numeric(data_bac$plot_num)
+
+data_bac$psr <- as.numeric(data_bac$psr)
+data_bac$plot <- as.factor(data_bac$plot)
+data_bac$the <- as.factor(data_bac$the)
+data_bac$she <- as.factor(data_bac$she)
+data_bac$leg <- as.factor(data_bac$leg)
+data_bac$gra <- as.factor(data_bac$gra)
+
+# fungi
+data_fun = data_fun %>% mutate(leg_num = leg)  
+data_fun$leg_num = gsub('yes', '1', data_fun$leg_num)
+data_fun$leg_num = gsub('no', '0', data_fun$leg_num)
+data_fun$leg_num <- as.numeric(data_fun$leg_num)
+
+data_fun = data_fun %>% mutate(gra_num = gra)  
+data_fun$gra_num = gsub('yes', '1', data_fun$gra_num)
+data_fun$gra_num = gsub('no', '0', data_fun$gra_num)
+data_fun$gra_num <- as.numeric(data_fun$gra_num)
+
+data_fun = data_fun %>% mutate(monocult_num = monocult)  
+data_fun$monocult_num = gsub('yes', '1', data_fun$monocult_num)
+data_fun$monocult_num = gsub('no', '0', data_fun$monocult_num)
+data_fun$monocult_num <- as.numeric(data_fun$monocult_num)
+
+data_fun = data_fun %>% mutate(plot_num = plot) 
+data_fun$plot_num <- as.numeric(data_fun$plot_num)
+
+data_fun$psr <- as.numeric(data_fun$psr)
+data_fun$plot <- as.factor(data_fun$plot)
+data_fun$the <- as.factor(data_fun$the)
+data_fun$she <- as.factor(data_fun$she)
+data_fun$leg <- as.factor(data_fun$leg)
+data_fun$gra <- as.factor(data_fun$gra)
+```
+
+Followed by adjusting the taxa names and defining the row names.
+
+```{r names, tidy=TRUE, message=FALSE, warning=FALSE, results='hide', echo=FALSE}
+## define row names 
+library(dplyr)
+otu_bac <- otu_bac %>% tibble::column_to_rownames("asv")
+tax_bac <- tax_bac %>% tibble::column_to_rownames("asv")
+data_bac <- data_bac %>% tibble::column_to_rownames("sID")
+
+otu_fun <- otu_fun %>% tibble::column_to_rownames("asv")
+tax_fun <- tax_fun %>% tibble::column_to_rownames("asv")
+data_fun <- data_fun %>% tibble::column_to_rownames("sID")
+```
+
+And finally writing the `phyloseq` objects, and extracting the metadata from them.
+
+```{r ps, tidy=TRUE, message=FALSE, warning=FALSE, results='hide', echo=FALSE}
+library(phyloseq)
+
+## write phyloseq bac 
+otu_bac <- as.matrix(otu_bac)
+tax_bac <- as.matrix(tax_bac)
+
+OTU_B = phyloseq::otu_table(otu_bac, taxa_are_rows = T)
+TAX_B = phyloseq::tax_table(tax_bac)
+samples_B = phyloseq::sample_data(data_bac)
+ps.bac.func <- phyloseq::phyloseq(OTU_B, TAX_B, samples_B)
+
+## write phyloseq fun
+otu_fun <- as.matrix(otu_fun)
+tax_fun <- as.matrix(tax_fun)
+
+OTU_F = phyloseq::otu_table(otu_fun, taxa_are_rows = T)
+TAX_F = phyloseq::tax_table(tax_fun)
+samples_F = phyloseq::sample_data(data_fun)
+ps.fun.func <- phyloseq::phyloseq(OTU_F, TAX_F, samples_F)
+
+## extract metadata
+data.bac1 <- data.frame(sample_data(ps.bac.func))
+data.fun1 <- data.frame(sample_data(ps.fun.func))
+```
+
+### **1. Redundancy Analysis (RDA)**
+
+Ordination can be calculated via the `phyloseq` or `vegan` packages. We utilized both to check if results were the same (they were), but ultimately stuck with using `vegan`, as we also used this package for subsequent PERMANOVA.
+
+**1.1 Create uniform RDA theme**
+
+```{r theme, tidy=FALSE, message=FALSE, warning=FALSE, results='hide'}
+theme_coord <- function (base_size = 12, base_family = "", border = FALSE, margin = TRUE, 
+                         legend = c("bottom"), x.text.angle = 0) 
+{
+  half_line <- base_size/2
+  if (!is.numeric(legend)) 
+    legend <- match.arg(legend)
+  if (x.text.angle > 5) 
+    xhjust <- 1
+  else xhjust <- NULL
+  if (margin) 
+    plot.margin <- margin(half_line, half_line, half_line, half_line)
+  else plot.margin <- unit(c(0.5, 0.3, 0.3, 0.3), "mm")
+  .theme <- 
+    theme_bw(base_size = base_size, base_family = base_family) %+replace% 
+    theme(panel.border = element_rect(fill = NA, colour = "black", size = 0.7),
+          panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank(), 
+          axis.line = element_blank(), 
+          axis.text = element_text(color = "black"), 
+          legend.key = element_blank(), 
+          strip.background = element_rect(fill = "#F2F2F2", colour = "black", size = 0.7), 
+          plot.margin = plot.margin, 
+          legend.position = legend, complete = TRUE,
+          plot.title = element_text(hjust = 0.5, face = "bold", size = 16, vjust = 2))
+  if (x.text.angle != 0) 
+    .theme <- .theme + theme(axis.text.x = element_text(angle = x.text.angle, 
+                                                        hjust = xhjust))
+  .theme
+}
+```
+
+**1.2 Create RDA models with `vegan`**
+
+Using the `rda()` function, we created mixed models for both the bacterial and fungal data to account for our test (PSR) and environmental (TOC, TN, pH) variables, along with the block ('plot') as a random factor as proposed by Schmidt et al. (2021).
+
+```{r rda model, tidy=TRUE, message=FALSE, warning=FALSE, results='hide'}
+library(vegan)
+library(dplyr)
+otu.bac.func = ps.bac.func %>% phyloseq::otu_table() %>% t() %>% as.data.frame()
+otu.fun.func = ps.fun.func %>% phyloseq::otu_table() %>% t() %>% as.data.frame()
+
+# mixed models
+rda_model.bac = vegan::rda(otu.bac.func ~ plot + psr + TOC + TN + pH, data = data.bac1)
+rda_model.fun = vegan::rda(otu.fun.func ~ plot + psr + C + N + pH, data = data.fun1)
+summary(rda_model.bac) 
+summary(rda_model.fun) 
+
+# calculate RDA axis scors
+eigenvalues.bac <- summary(rda_model.bac)$concont$importance["Eigenvalue", ]
+eigenvalues.fun <- summary(rda_model.fun)$concont$importance["Eigenvalue", ]
+variance.bac <- eigenvalues.bac / sum(eigenvalues.bac)
+variance.fun <- eigenvalues.fun / sum(eigenvalues.fun)
+```
+
+```{r rda results, tidy=TRUE, message=FALSE, warning=FALSE}
+# extract RDA axis scores
+print(variance.bac)
+print(variance.fun)
+```
+
+**1.3 Plot the RDA using `vegan` and `ggplot2`**
+
+We first used the `scores()` function to extract the ordination scores from our RDA models, and then plotted the resulting ordination with `ggplot2`. We used viridis color palette to highlight the change from low-to-high plant diversity, but also because this color palette is suited for color blindness.
+
+```{r rda plot, tidy=TRUE, message=FALSE, warning=FALSE}
+library(ggplot2) # plotting
+library(viridis) # color palette 
+#?vegan::scores
+
+data.bac1$psr = as.factor(data.bac1$psr)
+data.fun1$psr = as.factor(data.fun1$psr)
+
+# extract ordination scores 
+scores.bac <- scores(rda_model.bac, display = "sites")
+scores.fun <- scores(rda_model.fun, display = "sites")
+
+ordination.bac <- data.frame(scores.bac, PSR = data.bac1$psr, block = data.bac1$plot)
+ordination.fun <- data.frame(scores.fun, PSR = data.fun1$psr, block = data.fun1$plot)
+
+# plot RDA 
+gg_rda.bac.model <- 
+  ggplot(ordination.bac, aes(x=RDA1, y=RDA2, color = PSR, shape = block)) + 
+  geom_point(size = 3) + theme_coord() + labs(title = "16S-ASVs") + 
+  scale_color_viridis(discrete =T) + 
+  scale_shape_manual(values=c(15, 16, 17,18))
+
+gg_rda.fun.model <- 
+  ggplot(ordination.fun, aes(x=RDA1, y=RDA2, color = PSR, shape = block)) + 
+  geom_point(size = 3) + theme_coord() + labs(title = "ITS-ASVs") + 
+  scale_color_viridis(discrete =T) + 
+  scale_shape_manual(values=c(15, 16, 17,18))
+
+# assemble Figure 2
+ggpubr::ggarrange(ncol = 2, nrow = 1, gg_rda.bac.model, gg_rda.fun.model, common.legend = T)
+```
+
+### 2. Permutational Multivariate Analysis of Variance (PERMANOVA)
+
+**2.1 Calculate distance**
+
+```{r distance, tidy=TRUE, message=FALSE, warning=FALSE, results='hide', fig.show='hide'}
+ps.bac.func # ps object with bacterial functional data
+ps.fun.func # ps object with fungal functional data 
+
+## calculate distance 
+library(phyloseq)
+#?phyloseq::distance
+bray_dis.ps.bac.func <- phyloseq::distance(ps.bac.func, method = "bray")
+bray_dis.ps.fun.func <- phyloseq::distance(ps.fun.func, method = "bray")
+```
+
+**2.2 Running the PERMANOVA using `vegan`**
+
+We used the `adonis()` function to assess the effect of our predictor variables (i.e. PSR, FG richness, FG identity) on our soil microbial communities, while accounting for environmental covariables (pH, TOC, TN) and 'block' as a random factor – with 999 permutations – as proposed by Schmidt et al. (2021).
+
+```{r permanova, tidy=TRUE, message=FALSE, warning=FALSE}
+library(phyloseq)
+library(vegan)
+
+# PERMANOVA bacteria 
+vegan::adonis2(bray_dis.ps.bac.func ~ plot + psr*fgr_sown + leg + gra, data = data.bac1, permutations = 999, by = "terms")
+vegan::adonis2(bray_dis.ps.bac.func ~ plot + fgr_sown*psr + leg + gra, data = data.bac1, permutations = 999, by = "terms")
+
+# PERMANOVA fungi
+vegan::adonis2(bray_dis.ps.fun.func ~ plot + psr*fgr_sown + leg + gra, data = data.fun1, permutations = 999, by = "terms")
+vegan::adonis2(bray_dis.ps.fun.func ~ plot + fgr_sown*psr + leg + gra, data = data.fun1, permutations = 999, by = "terms")
+```
+
+**2.3 Calculate %Sum of Squares, and create summary table**
+
+Our goal is to create a table with all F and *p*-values, already modified to show 3 digits after comma, along with the %SS. As we have many models, we write a function to simplify the process, which calculates the %SS, rounds our F, *p*, and %SS values to be uniform, and binds all them together based on domain of life for easier export.
+
+Write the function:
+
+```{r functionSS, tidy=TRUE, message=FALSE, warning=FALSE, results='hide'}
+get_permanova_stats <- function(adonis_obj) {
+  aov_tab <- adonis_obj
+  # Extract SS including residuals for %SS
+  total_SS <- sum(aov_tab$SumOfSqs, na.rm = TRUE)
+  # Remove residuals for table display
+  aov_tab <- aov_tab[!rownames(aov_tab) %in% c("Residual", "Total"), ]
+  Fval <- aov_tab$F
+  pval <- aov_tab$`Pr(>F)`
+  perc_SS <- round((aov_tab$SumOfSqs / total_SS) * 100, 3)
+  data.frame(
+    Term = rownames(aov_tab),
+    F_value = round(Fval, 3),
+    p_value = round(pval, 3),
+    Percent_SS = perc_SS,
+    row.names = NULL
+  )
+}
+```
+
+Now we apply the function to our models:
+
+```{r functionUSE, tidy=TRUE, message=FALSE, warning=FALSE}
+## Define PERMANOVA output as objects 
+perm.func.B1 = vegan::adonis2(bray_dis.ps.bac.func ~ plot + psr*fgr_sown + leg + gra, data = data.bac1, permutations = 999, by = "terms")
+
+perm.func.B2 = vegan::adonis2(bray_dis.ps.bac.func ~ plot + fgr_sown*psr + leg + gra, data = data.bac1, permutations = 999, by = "terms")
+
+perm.func.F1 = vegan::adonis2(bray_dis.ps.fun.func ~ plot + psr*fgr_sown + leg + gra, data = data.fun1, permutations = 999, by = "terms")
+
+perm.func.F2 = vegan::adonis2(bray_dis.ps.fun.func ~ plot + fgr_sown*psr + leg + gra, data = data.fun1, permutations = 999, by = "terms")
+
+## Apply function
+print(get_permanova_stats(perm.func.B1))
+print(get_permanova_stats(perm.func.B2))
+print(get_permanova_stats(perm.func.F1))
+print(get_permanova_stats(perm.func.F2))
+```

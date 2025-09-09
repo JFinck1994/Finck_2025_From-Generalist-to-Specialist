@@ -1,0 +1,186 @@
+---
+title: "Fig. S1: Plant functional group identity drives microbial specialization."
+author: "Jessica Finck"
+date: "2025-05-12"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+***Please refer to Fig-5AB.Rmd for the full script with all explanations***
+
+Load packages:
+
+```{r packages, message=FALSE, warning=FALSE}
+library(vegan) 
+library(readxl) 
+library(dplyr)  
+
+set.seed(123)
+```
+
+Load data:
+
+```{r data clean up, message=FALSE, warning=FALSE}
+# bacteria  
+CLAM_otu.bac = read_excel("./masterfile_bac.xlsx", sheet = "asv_inv") 
+CLAM_dat.bac = read_excel("./masterfile_bac.xlsx", sheet = "metadata_all")  
+
+# fungi  
+CLAM_otu.fun <- read_excel("./masterfile_fun.xlsx", sheet = "asv_inv") 
+CLAM_dat.fun <- read_excel("./masterfile_fun.xlsx", sheet = "metadata_all")
+```
+
+## 1. CLAM test for influence of grasses on niche differentiation
+
+Clean data:
+
+```{r data clean1, message=FALSE, warning=FALSE, tidy=TRUE}
+# bacteria 
+env.bac_gra1 <- CLAM_dat.bac[CLAM_dat.bac$gra == "yes",]
+env.bac_gra2 <- CLAM_dat.bac[CLAM_dat.bac$gra == "no",]
+CLAM_dat.bac_gra <- rbind(env.bac_gra2, env.bac_gra1)
+
+# fungi 
+env.fun_gra1 <- CLAM_dat.fun[CLAM_dat.fun$gra == "yes",]
+env.fun_gra2 <- CLAM_dat.fun[CLAM_dat.fun$gra == "no",]
+CLAM_dat.fun_gra <- rbind(env.fun_gra2, env.fun_gra1)
+```
+
+Merge ASVs and metadata:
+
+```{r merge1, message=FALSE, warning=FALSE, tidy=TRUE}
+# bacteria  
+CLAM_otu.bac.gra <- merge(CLAM_dat.bac_gra, CLAM_otu.bac, by = "sID")
+CLAM_otu.bac.gra <- CLAM_otu.bac.gra[, -c(2:30)]
+
+# fungi 
+CLAM_otu.fun.gra <- merge(CLAM_dat.fun_gra, CLAM_otu.fun, by = "sID")
+CLAM_otu.fun.gra <- CLAM_otu.fun.gra[, -c(2:29)]
+```
+
+Format merged table:
+
+```{r prepare, message=FALSE, warning=FALSE, tidy=TRUE}
+# bacteria 
+row.names(CLAM_otu.bac.gra) <- CLAM_otu.bac.gra$sID         
+row.names(CLAM_dat.bac_gra) <- CLAM_dat.bac_gra$sID              
+CLAM_otu.bac.gra <- CLAM_otu.bac %>% dplyr::select(-sID)    
+CLAM_dat.bac_gra <- CLAM_dat.bac_gra %>% dplyr::select(-sID)
+CLAM_otu.bac.gra = CLAM_otu.bac.gra[,colSums(CLAM_otu.bac.gra) >= 1]  
+
+# fungi 
+row.names(CLAM_otu.fun.gra) <- CLAM_otu.fun.gra$sID              
+row.names(CLAM_dat.fun_gra) <- CLAM_dat.fun_gra$sID              
+CLAM_otu.fun.gra <- CLAM_otu.fun.gra %>% dplyr::select(-sID)     
+CLAM_dat.fun_gra <- CLAM_dat.fun_gra %>% dplyr::select(-sID)     
+CLAM_otu.fun.gra = CLAM_otu.fun.gra[,colSums(CLAM_otu.fun.gra) >= 1]  
+```
+
+CLAM test:
+
+```{r clamtest, tidy=TRUE, message=FALSE, warning=FALSE, results='hide'}
+ # bacteria
+clam_gra.bac = with(CLAM_dat.bac_gra, clamtest(CLAM_otu.bac.gra, gra, alpha = 0.05, specialization = 2/3))
+
+# fungi
+clam_gra.fun = with(CLAM_dat.fun_gra, clamtest(CLAM_otu.fun.gra, gra, alpha = 0.05, specialization = 2/3)) 
+```
+
+```{r clamout1, tidy=TRUE, message=FALSE, warning=FALSE}
+summary(clam_gra.bac)
+summary(clam_gra.fun)
+```
+
+Plot:
+
+```{r plotCLAM1, tidy=TRUE}
+# bacteria 
+plot(clam_gra.bac, col.points = c("grey89", "darkseagreen2", "darkgreen", "black"),  col.lines = c("grey40", "grey40", "grey40"),
+     pch = c(16,16,16,16), cex = .7, lty = 1:3, lwd = 2, main = "With × Without Grasses (Bacteria)",
+     xlab = "has grasses", ylab = "no grasses", position = "bottomright")
+
+# fungi 
+plot(clam_gra.fun, col.points = c("grey89", "darkseagreen2", "darkgreen", "black"),  col.lines = c("grey40", "grey40", "grey40"),
+     pch = c(16,16,16,16), cex = .7, lty = 1:3, lwd = 2, main = "With × Without Grasses (Fungi)",
+     xlab = "has grasses", ylab = "no grasses", position = "bottomright")
+```
+
+## 2. CLAM test for influence of legumes on niche differentiation
+
+Clean data:
+
+```{r data clean2, message=FALSE, warning=FALSE, tidy=TRUE}
+# bacteria
+env.bac_leg1 <- CLAM_dat.bac[CLAM_dat.bac$leg == "yes",]
+env.bac_leg2 <- CLAM_dat.bac[CLAM_dat.bac$leg == "no",]
+CLAM_dat.bac_leg <- rbind(env.bac_leg2, env.bac_leg1)
+
+# fungi
+env.fun_leg1 <- CLAM_dat.fun[CLAM_dat.fun$leg == "yes",]
+env.fun_leg2 <- CLAM_dat.fun[CLAM_dat.fun$leg == "no",]
+CLAM_dat.fun_leg <- rbind(env.fun_leg2, env.fun_leg1)
+```
+
+Merge ASVs and metadata:
+
+```{r merge2, message=FALSE, warning=FALSE, tidy=TRUE}
+# bacteria 
+CLAM_otu.bac.leg <- merge(CLAM_dat.bac_leg, CLAM_otu.bac, by = "sID")
+CLAM_otu.bac.leg <- CLAM_otu.bac.leg[, -c(2:30)]
+
+# fungi
+CLAM_otu.fun.leg <- merge(CLAM_dat.fun_leg, CLAM_otu.fun, by = "sID")
+CLAM_otu.fun.leg <- CLAM_otu.fun.leg[, -c(2:29)]
+```
+
+Format merged table:
+
+```{r prepare2, message=FALSE, warning=FALSE, tidy=TRUE}
+# bacteria
+row.names(CLAM_otu.bac.leg) <- CLAM_otu.bac.leg$sID              
+row.names(CLAM_dat.bac_leg) <- CLAM_dat.bac_leg$sID              
+CLAM_otu.bac.leg <- CLAM_otu.bac.leg %>% dplyr::select(-sID)     
+CLAM_dat.bac_leg <- CLAM_dat.bac_leg %>% dplyr::select(-sID)     
+CLAM_otu.bac.leg = CLAM_otu.bac.leg[,colSums(CLAM_otu.bac.leg) >= 1]  
+
+# fungi
+row.names(CLAM_otu.fun.leg) <- CLAM_otu.fun.leg$sID              
+row.names(CLAM_dat.fun_leg) <- CLAM_dat.fun_leg$sID              
+CLAM_otu.fun.leg <- CLAM_otu.fun.leg %>% dplyr::select(-sID)     
+CLAM_dat.fun_leg <- CLAM_dat.fun_leg %>% dplyr::select(-sID)     
+CLAM_otu.fun.leg = CLAM_otu.fun.leg[,colSums(CLAM_otu.fun.leg) >= 1]      
+```
+
+CLAM test:
+
+```{r clamtest2, tidy=TRUE, message=FALSE, warning=FALSE, results='hide'}
+# bacteria
+clam_leg.bac = with(CLAM_dat.bac_leg, clamtest(CLAM_otu.bac.leg, leg, alpha = 0.05, specialization = 2/3))
+
+# fungi
+clam_leg.fun = with(CLAM_dat.fun_leg, clamtest(CLAM_otu.fun.leg, leg, alpha = 0.05, specialization = 2/3))
+```
+
+```{r clamout2, tidy=TRUE, message=FALSE, warning=FALSE}
+summary(clam_leg.bac)
+summary(clam_leg.fun)
+```
+
+Plot:
+
+```{r plotCLAM2, tidy=TRUE}
+# bacteria
+plot(clam_leg.bac, col.points = c("grey89", "lavender", "purple", "black"),  col.lines = c("grey40", "grey40", "grey40"),
+     pch = c(16,16,16,16), cex = .7, lty = 1:3, lwd = 2, main = "With × Without legumes (Bacteria)",
+     xlab = "has legumes", ylab = "no legumes", position = "bottomright")
+
+# fungi
+plot(clam_leg.fun, col.points = c("grey89", "lavender", "purple", "black"),  col.lines = c("grey40", "grey40", "grey40"),
+     pch = c(16,16,16,16), cex = .7, lty = 1:3, lwd = 2, main = "With × Without legumes (Fungi)",
+     xlab = "has legumes", ylab = "no legumes", position = "bottomright")
+```

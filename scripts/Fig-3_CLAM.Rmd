@@ -1,0 +1,183 @@
+---
+title: "Fig. 3: Multinomial species classification for niche occupancy of bacteria and fungi between low versus high plant diversity."
+author: "Jessica Finck"
+date: "2025-05-12"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Pre-requisites
+
+### Load packages
+
+```{r packages, message=FALSE, warning=FALSE}
+library(vegan)  # CLAM test
+library(readxl) # data import
+library(dplyr)  # data wrangling
+
+set.seed(123)
+```
+
+## Prepare the data for multinomial species classification method (CLAM)
+
+CLAM works by testing two groups of data against each other. Taking our data as an example, we have a gradient of plant species richness covering 5 levels, with 1-2 PSR equaling low diversity, and 4-16 PSR equaling high diversity. Employing CLAM checks for each ASV whether it occurs primarily at low diversity (group 1 specialist) or at high diversity (group 2 specialist), or neither (generalist). To do so, we first prepared our data in a way that vegan's `clamtest()` can use it.
+
+### 1. Load data
+
+```{r data clean up, message=FALSE, warning=FALSE}
+# bacteria
+CLAM_otu.bac = read_excel("./masterfile_bac.xlsx", sheet = "asv_inv")
+CLAM_dat.bac = read_excel("./masterfile_bac.xlsx", sheet = "metadata_all")
+
+# fungi 
+CLAM_otu.fun <- read_excel("./masterfile_fun.xlsx", sheet = "asv_inv")
+CLAM_dat.fun <- read_excel("./masterfile_fun.xlsx", sheet = "metadata_all")
+```
+
+***Important!*** ASV table and metadata must have one shared column as an identifier *(here: sID)* for later merging, and metadata must contain one column for grouping for the CLAM test *(here: env2).* See below for the required formatting of data tables:
+
+**ASV/OTU table**
+
+| sID   | asv1 | asv2 | ... |
+|-------|------|------|-----|
+| B1A01 |      |      |     |
+| B1A02 |      |      |     |
+| ...   |      |      |     |
+
+**Metadata table:**
+
+| sID   | env1 (e.g. PSR) | env2 (e.g. div_level) | ... |
+|-------|-----------------|-----------------------|-----|
+| B1A01 | 16              | high                  |     |
+| B1A02 | 8               | high                  |     |
+| B1A07 | 2               | low                   |     |
+| B1A08 | 1               | low                   |     |
+| ...   |                 |                       |     |
+
+### 2. Data cleaning
+
+First, we subsetted our data based on the respective metadata column *(here: div_level),* to retain only the diversity levels *(here: 'low', 'high')* we needed.
+
+```{r data clean1, message=FALSE, warning=FALSE, tidy=TRUE}
+# bacteria
+env.bac_div1 <- CLAM_dat.bac[CLAM_dat.bac$div_level == "high",]
+env.bac_div2 <- CLAM_dat.bac[CLAM_dat.bac$div_level == "low",]
+
+# fungi
+env.fun_div1 <- CLAM_dat.fun[CLAM_dat.fun$div_level == "high",]
+env.fun_div2 <- CLAM_dat.fun[CLAM_dat.fun$div_level == "low",]
+```
+
+Then, we re-bound the two metadata groups back together.
+
+```{r data clean2, message=FALSE, warning=FALSE, tidy=TRUE}
+# bacteria
+CLAM_dat.bac_div <- rbind(env.bac_div1, env.bac_div2)
+
+# fungi
+CLAM_dat.fun_div <- rbind(env.fun_div1, env.fun_div2)
+```
+
+The aim is to get rid of rows we don't need. However, for our data, we actually retained all samples, as we classified them into low or high diversity based on their PSR, with PSR \<= 2 being 'low' and PSR \>= 4 being 'high'.
+
+### 3. Merge ASV/OTU and bound-metadata
+
+Then, we merged the newly acquired metadata object `CLAM_dat.bac_div` with our ASV data via the shared column 'sID'.
+
+```{r merge1, message=FALSE, warning=FALSE, tidy=TRUE}
+CLAM_otu.bac.div <- merge(CLAM_dat.bac_div, CLAM_otu.bac, by = "sID") # bacteria
+CLAM_otu.fun.div <- merge(CLAM_dat.fun_div, CLAM_otu.fun, by = "sID") # fungi
+```
+
+The resulting table now has all columns of the metadata table and ASV table, including many unwanted columns (e.g. environmental data which CLAM doesn't need). Thus, we then filtered out any columns not needed. The resulting table has to have onle the 'sID' and the ASV columns.
+
+```{r merge2, message=FALSE, warning=FALSE, tidy=TRUE}
+CLAM_otu.bac.div <- CLAM_otu.bac.div[, -c(2:30)] # bacteria
+CLAM_otu.fun.div <- CLAM_otu.fun.div[, -c(2:29)] # fungi
+```
+
+### 4. Format data table for CLAM test function
+
+-   first, define row names using the first (sID) column
+
+-   then, remove the sID column
+
+-   lastly, remove aany ASVs/OTUs with no reads
+
+-   the resulting table should only retain ASVs/OTUs present in the low/high diversity samples
+
+```{r prepare, message=FALSE, warning=FALSE, tidy=TRUE}
+# bacteria
+row.names(CLAM_otu.bac.div) <- CLAM_otu.bac.div$sID 
+row.names(CLAM_dat.bac_div) <- CLAM_dat.bac_div$sID             
+
+CLAM_otu.bac.div <- CLAM_otu.bac.div %>% dplyr::select(-sID)    
+CLAM_dat.bac_div <- CLAM_dat.bac_div %>% dplyr::select(-sID)   
+
+CLAM_otu.bac.div = CLAM_otu.bac.div[,colSums(CLAM_otu.bac.div) >= 1]  
+
+# fungi
+row.names(CLAM_otu.fun.div) <- CLAM_otu.fun.div$sID              
+row.names(CLAM_dat.fun_div) <- CLAM_dat.fun_div$sID 
+
+CLAM_otu.fun.div <- CLAM_otu.fun.div %>% dplyr::select(-sID)     
+CLAM_dat.fun_div <- CLAM_dat.fun_div %>% dplyr::select(-sID)     
+
+CLAM_otu.fun.div = CLAM_otu.fun.div[,colSums(CLAM_otu.fun.div) >= 1]
+```
+
+## CLAM Test
+
+### 1. Running the test
+
+The actual test is performed using vegan's `clamtest()` function, and requires the previously re-formatted data table and ASV/OTU table.
+
+```{r clamtest, tidy=TRUE, message=FALSE, warning=FALSE, results='hide'}
+clam_div.bac = with(CLAM_dat.bac_div, clamtest(CLAM_otu.bac.div, div_level, alpha = 0.05, specialization = 2/3))
+
+clam_div.fun = with(CLAM_dat.fun_div, clamtest(CLAM_otu.fun.div, div_level, alpha = 0.05, specialization = 2/3))
+```
+
+***Alpha***
+
+-   Numeric, nominal significance level for individual tests, thus its **sets the confidence level** for classifying species into those categories
+
+-   The default value reduces the conventional limit of `alpha = 0.05` or `0.01` to account for overdispersion and multiple testing for several species simultaneously
+
+-   a **lower alpha** makes it harder for a species to be classified (more fall into "too rare")
+
+***Specialization***
+
+-   Numeric, specialization threshold value between 0 and 1
+
+-   The default is `specialization = 2/3` which represents the **supermajority rule**, meaning that 66.67% of species x occur preferrably in one group but not the other (indicator for specialism)
+
+-   A value of `specialization = 1/2` represents a **simple majority rule** to assign shared species as habitat specialists
+
+    ```{r clamout, tidy=TRUE, message=FALSE, warning=FALSE}
+    summary(clam_div.bac)
+    summary(clam_div.fun)
+    ```
+
+### 2. Plotting the output
+
+For plotting, we directly used the CLAM output `clam_div.bac` to plot it using base R.
+
+```{r, tidy=FALSE, message=FALSE, warning=FALSE}
+# bacteria
+plot(clam_div.bac, col.points = c("grey89", "yellow", "midnightblue", "black"), 
+     col.lines = c("grey40", "grey40", "grey40"), pch = c(16,16,16,16), cex = .7, 
+     lty = 1:3, lwd = 2, main = "Low diversity × High diversity (Bacteria)", 
+     xlab = "low diversity", ylab = "high diversity", position = "bottomright") 
+
+# fungi
+plot(clam_div.fun, col.points = c("grey89", "yellow", "midnightblue", "black"),  
+     col.lines = c("grey40", "grey40", "grey40"), pch = c(16,16,16,16), cex = .7, 
+     lty = 1:3, lwd = 2, main = "Low diversity × High diversity (Fungi)",
+     xlab = "low diversity", ylab = "high diversity", position = "bottomright")
+```

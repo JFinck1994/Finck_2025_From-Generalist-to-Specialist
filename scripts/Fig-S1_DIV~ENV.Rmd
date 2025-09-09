@@ -1,0 +1,395 @@
+---
+title: "Fig. 1: Relationship between soil carbon, nitrogen, and plant biomass with plant diversity."
+author: "Jessica Finck"
+date: "2025-05-12"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This script aims to monitor the change in environmental parameters (soil Carbon, soil Nitrogen, plant aboveground biomass) across the 5 diversity levels, separated by block. Moreover, it tracks the change in the specified parameters based on the presence of particular functional group (FG) identities (namely legumes and grasses), as well as functional group (FG) richness.
+
+### **1. Pre-requisites**
+
+Load packages and environmental data:
+
+```{r prerequisites, tidy=TRUE, message=FALSE, warning=FALSE, results='hide'}
+library(readxl)
+library(dplyr)
+
+env_data <- read.delim(file="masterfile_env.tsv", header=TRUE, row.names=1)
+env_data = env_data %>% as.data.frame()
+env_data[,1:1] <- sapply(env_data[,1:1],as.factor)
+```
+
+### 2. Prepare data for analysis and plotting
+
+Load additional packages for visualization and statistical tests:
+
+```{r packages, tidy=TRUE, message=FALSE, warning=FALSE, results='hide'}
+library(ggplot2)
+library(ggpubr)
+library(ggsignif)
+```
+
+We are interested how the presence of grasses and/or legumes affects the chosen parameters. FOr our study, we chose a box plot to visualize this difference. First, we need to prepare the data by introducing a 2-factor column into our data frame that separates our samples by presence or absence of the functional identities in question (here: grasses, legumes):
+
+```{r means, tidy=TRUE, message=FALSE, warning=FALSE, results='hide'}
+env_data <- env_data %>% mutate(leg = ifelse(bm_leg > 0, "present", "absent"))
+env_data <- env_data %>% mutate(gra = ifelse(bm_gra > 0, "present", "absent"))
+str(env_data)
+```
+
+### 3. Statistical evaluation
+
+**3.1 Statistical evaluation of plant diversity effects on soil and growth parameters for each block**
+
+To test whether PSR and FG richness significantly affected soil and growth parameters across the individual sampling blocks, we used a simple scatter plot approach with integrated statistics function using the `ggpubr` package.
+
+```{r stats_psr, tidy=FALSE, message=FALSE, warning=FALSE, results='hide', fig.show='hide'}
+library(dplyr)
+library(ggpubr)
+library(ggplot2)
+
+# soil Carbon ~ PSR 
+env_data %>% 
+  ggplot(aes(x=lg_psr, y=C, color=block)) + 
+  geom_point(aes(shape=block), size=3) + 
+  geom_smooth(method=lm, se=F, fullrange=T) +
+  theme_pubr() + xlab("plant species richness") + 
+  ylab("organic soil Carbon g kg^-1") +
+  scale_shape_manual(values=c(21,22,23,24)) + 
+  scale_x_continuous(breaks = c(1,2,4,8,16)) + 
+  ggpubr::stat_cor(method = "lm")
+
+# soil Nitrogen ~ PSR 
+env_data %>% 
+  ggplot(aes(x=lg_psr, y=N, color=block)) + 
+  geom_point(aes(shape=block), size=3) + 
+  geom_smooth(method=lm, se=F, fullrange=T) +
+  theme_pubr() + xlab("plant species richness") + 
+  ylab("total soil Nitrogen g kg^-1") +
+  scale_shape_manual(values=c(21,22,23,24)) + 
+  scale_x_continuous(breaks = c(1,2,4,8,16)) + 
+  ggpubr::stat_cor(method = "lm") 
+
+# plant biomass ~ PSR 
+env_data %>% 
+  ggplot(aes(x=lg_psr, y=bm_total, color=block)) + 
+  geom_point(aes(shape=block), size=3) + 
+  geom_smooth(method=lm, se=F, fullrange=T) +
+  theme_pubr() + xlab("plant species richness") + 
+  ylab("total aboveground biomass g") +
+  scale_shape_manual(values=c(21,22,23,24)) + 
+  scale_x_continuous(breaks = c(1,2,4,8,16)) + 
+  ggpubr::stat_cor(method = "lm")
+
+# soil Carbon ~ FGr 
+env_data %>% 
+  ggplot(aes(x=fgr_sown, y=C, color=block)) + 
+  geom_point(aes(shape=block), size=3) + 
+  geom_smooth(method=lm, se=F, fullrange=T) +
+  theme_pubr() + xlab("plant species richness") + 
+  ylab("organic soil Carbon g kg^-1") +
+  scale_shape_manual(values=c(21,22,23,24)) + 
+  scale_x_continuous(breaks = c(1,2,4,8,16)) + 
+  ggpubr::stat_cor(method = "lm")
+
+# soil Nitrogen ~ FGr 
+env_data %>% 
+  ggplot(aes(x=fgr_sown, y=N, color=block)) + 
+  geom_point(aes(shape=block), size=3) + 
+  geom_smooth(method=lm, se=F, fullrange=T) +
+  theme_pubr() + xlab("plant species richness") + 
+  ylab("total soil Nitrogen g kg^-1") +
+  scale_shape_manual(values=c(21,22,23,24)) + 
+  scale_x_continuous(breaks = c(1,2,4,8,16)) + 
+  ggpubr::stat_cor(method = "lm") 
+
+# plant biomass ~ FGr 
+env_data %>% 
+  ggplot(aes(x=fgr_sown, y=bm_total, color=block)) + 
+  geom_point(aes(shape=block), size=3) + 
+  geom_smooth(method=lm, se=F, fullrange=T) +
+  theme_pubr() + xlab("plant species richness") + 
+  ylab("total aboveground biomass g") +
+  scale_shape_manual(values=c(21,22,23,24)) + 
+  scale_x_continuous(breaks = c(1,2,4,8,16)) + 
+  ggpubr::stat_cor(method = "lm")
+```
+
+**3.2 Statistical evaluation of plant diversity effects on soil and growth parameters independent of block**
+
+We then further tested the global effect of PSR, FG richness, and the presence of legumes and grasses on soil and growth parameters irrespective of sampling blocks using the `aov()` function of the `stats` package. We did so directly utilizing our imported data frame `env_data`.
+
+```{r stats_fg, tidy=TRUE, message=FALSE, warning=FALSE}
+## Effect of PSR
+summary(aov(C ~ lg_psr, data = env_data))[[1]]["Pr(>F)"][1]
+summary(aov(N ~ lg_psr, data = env_data))[[1]]["Pr(>F)"][1]
+summary(aov(bm_total ~ lg_psr, data = env_data))[[1]]["Pr(>F)"][1]
+
+## Effect of FG richness
+summary(aov(C ~ fgr_sown, data = env_data))[[1]]["Pr(>F)"][1]
+summary(aov(N ~ fgr_sown, data = env_data))[[1]]["Pr(>F)"][1]
+summary(aov(bm_total ~ fgr_sown, data = env_data))[[1]]["Pr(>F)"][1]
+
+## Effect of grasses 
+summary(aov(C ~ bm_gra, data = env_data))[[1]]["Pr(>F)"][1]
+summary(aov(N ~ bm_gra, data = env_data))[[1]]["Pr(>F)"][1]
+summary(aov(bm_total ~ bm_gra, data = env_data))[[1]]["Pr(>F)"][1]
+
+## Effect of legumes
+summary(aov(C ~ bm_leg, data = env_data))[[1]]["Pr(>F)"][1]
+summary(aov(N ~ bm_leg, data = env_data))[[1]]["Pr(>F)"][1]
+summary(aov(bm_total ~ bm_leg, data = env_data))[[1]]["Pr(>F)"][1]
+```
+
+### 4. Plot the individual panels
+
+For our plots, we first load the required packages, and then manually set the color scales, based on our data structure.
+
+```{r colors, tidy=FALSE, message=FALSE, warning=FALSE, results='hide'}
+library(ggplot2)
+library(ggpubr)
+library(RColorBrewer)
+library(ggnewscale)
+
+psr.fgr_colors = c("darkolivegreen1","darkolivegreen3","darkolivegreen4", "darkolivegreen") 
+gra_colors <- c("absent" = "darkolivegreen1", "present" = "darkolivegreen") 
+leg_colors <- c("absent" = "darkolivegreen1", "present" = "darkolivegreen")
+```
+
+**4.1 Panel A – Effect of PSR on SOC, TN, and shoot biomass**
+
+For each parameter – SOC, TN, biomass – we created 3 individual plots, which we then later combined using the `ggarrange()` function of the `ggpubr` package to create Fig. S1's panel A.
+
+```{r panelA, tidy=FALSE, message=FALSE, warning=FALSE, results='hide'}
+## Effect on SOC
+gg_psr.SOC = ggplot(env_data, aes(x = lg_psr, y = C)) +
+  geom_point(aes(color = factor(block), shape = factor(block)), size = 3, alpha = 0.7) +
+  scale_color_manual(name = "Block", values = psr.fgr_colors) +
+  scale_shape_manual(name = "Block", values = c(15,16,17,18)) +
+  ggnewscale::new_scale_color() +
+  ggnewscale::new_scale_fill() +
+  geom_smooth(aes(group = factor(block), color = factor(block), fill = factor(block)), 
+              method = "lm", se = FALSE, linetype = "solid", size = 0.8, alpha = 0.3) +
+  scale_color_manual(name = "Block (fit)", values = psr.fgr_colors) +
+  scale_fill_manual(values = scales::alpha(psr.fgr_colors, 0.3), guide = "none") +
+  geom_smooth(data = env_data, aes(x = lg_psr, y = C), 
+              method = "lm", se = TRUE, 
+              color = "red", fill = "red", linetype = "solid", size = 1.4, alpha = 0.3) +
+  scale_x_continuous(name = "Plant species richness",
+                     breaks = c(0, 0.301029996, 0.602059991, 0.903089987, 1.204119983), 
+                     labels = c("1", "2", "4", "8", "16")) +
+  labs(y = "SOC") +
+  theme_pubr() 
+
+## Effect on TN
+gg_psr.TN = ggplot(env_data, aes(x = lg_psr, y = N)) +
+  geom_point(aes(color = factor(block), shape = factor(block)), size = 3, alpha = 0.7) +
+  scale_color_manual(name = "Block", values = psr.fgr_colors) +
+  scale_shape_manual(name = "Block", values = c(15,16,17,18)) +
+  ggnewscale::new_scale_color() +
+  ggnewscale::new_scale_fill() +
+  geom_smooth(aes(group = factor(block), color = factor(block), fill = factor(block)), 
+              method = "lm", se = FALSE, linetype = "solid", size = 0.8, alpha = 0.3) +
+  scale_color_manual(name = "Block (fit)", values = psr.fgr_colors) +
+  scale_fill_manual(values = scales::alpha(psr.fgr_colors, 0.3), guide = "none") +
+  geom_smooth(data = env_data, aes(x = lg_psr, y = N), 
+              method = "lm", se = TRUE, 
+              color = "red", fill = "red", linetype = "solid", size = 1.4, alpha = 0.3) +
+  scale_x_continuous(name = "Plant species richness",
+                     breaks = c(0, 0.301029996, 0.602059991, 0.903089987, 1.204119983), 
+                     labels = c("1", "2", "4", "8", "16")) +
+  labs(y = "TN") +
+  theme_pubr() 
+
+## Effect on BM
+gg_psr.bm = ggplot(env_data, aes(x = lg_psr, y = bm_total)) +
+  geom_point(aes(color = factor(block), shape = factor(block)), size = 3, alpha = 0.7) +
+  scale_color_manual(name = "Block", values = psr.fgr_colors) +
+  scale_shape_manual(name = "Block", values = c(15,16,17,18)) +
+  ggnewscale::new_scale_color() +
+  ggnewscale::new_scale_fill() +
+  geom_smooth(aes(group = factor(block), color = factor(block), fill = factor(block)), 
+              method = "lm", se = FALSE, linetype = "solid", size = 0.8, alpha = 0.3) +
+  scale_color_manual(name = "Block (fit)", values = psr.fgr_colors) +
+  scale_fill_manual(values = scales::alpha(psr.fgr_colors, 0.3), guide = "none") +
+  geom_smooth(data = env_data, aes(x = lg_psr, y = bm_total), 
+              method = "lm", se = TRUE, 
+              color = "red", fill = "red", linetype = "solid", size = 1.4, alpha = 0.3) +
+  scale_x_continuous(name = "Plant species richness",
+                     breaks = c(0, 0.301029996, 0.602059991, 0.903089987, 1.204119983), 
+                     labels = c("1", "2", "4", "8", "16")) +
+  labs(y = "Total Biomass") +
+  theme_pubr() 
+```
+
+**4.1 Panel B – Effect of FG richness on SOC, TN, and shoot biomass**
+
+For each parameter – SOC, TN, biomass – we created 3 individual plots, which we then combined into 1 panel using the `ggarrange()` function of the `ggpubr` package to create Fig. S1's panel B.
+
+```{r panelB, tidy=FALSE, message=FALSE, warning=FALSE, results='hide'}
+## Effect on SOC
+gg_fgr.SOC = ggplot(env_data, aes(x = fgr_sown, y = C)) +
+  geom_point(aes(color = factor(block), shape = factor(block)), size = 3, alpha = 0.7) +
+  scale_color_manual(name = "Block", values = psr.fgr_colors) +
+  scale_shape_manual(name = "Block", values = c(15,16,17,18)) +
+  ggnewscale::new_scale_color() +
+  ggnewscale::new_scale_fill() +
+  geom_smooth(aes(group = factor(block), color = factor(block), fill = factor(block)), 
+              method = "lm", se = FALSE, linetype = "solid", size = 0.8, alpha = 0.3) +
+  scale_color_manual(name = "Block (fit)", values = psr.fgr_colors) +
+  scale_fill_manual(values = scales::alpha(psr.fgr_colors, 0.3), guide = "none") +
+  geom_smooth(data = env_data, aes(x = fgr_sown, y = C), 
+              method = "lm", se = TRUE, 
+              color = "red", fill = "red", linetype = "solid", size = 1.4, alpha = 0.3) +
+  labs(y = "SOC", x = "Functional group richness") +
+  theme_pubr() 
+
+## Effect on TN
+gg_fgr.TN = ggplot(env_data, aes(x = fgr_sown, y = N)) +
+  geom_point(aes(color = factor(block), shape = factor(block)), size = 3, alpha = 0.7) +
+  scale_color_manual(name = "Block", values = psr.fgr_colors) +
+  scale_shape_manual(name = "Block", values = c(15,16,17,18)) +
+  ggnewscale::new_scale_color() +
+  ggnewscale::new_scale_fill() +
+  geom_smooth(aes(group = factor(block), color = factor(block), fill = factor(block)), 
+              method = "lm", se = FALSE, linetype = "solid", size = 0.8, alpha = 0.3) +
+  scale_color_manual(name = "Block (fit)", values = psr.fgr_colors) +
+  scale_fill_manual(values = scales::alpha(psr.fgr_colors, 0.3), guide = "none") +
+  geom_smooth(data = env_data, aes(x = fgr_sown, y = N),
+              method = "lm", se = TRUE, 
+              color = "red", fill = "red", linetype = "solid", size = 1.4, alpha = 0.3) +
+  labs(y = "TN", x = "Functional group richness") +
+  theme_pubr() 
+
+## Effect on BM
+gg_fgr.bm = ggplot(env_data, aes(x = fgr_sown, y = bm_total)) +
+  geom_point(aes(color = factor(block), shape = factor(block)), size = 3, alpha = 0.7) +
+  scale_color_manual(name = "Block", values = psr.fgr_colors) +
+  scale_shape_manual(name = "Block", values = c(15,16,17,18)) +
+  ggnewscale::new_scale_color() +
+  ggnewscale::new_scale_fill() +
+  geom_smooth(aes(group = factor(block), color = factor(block), fill = factor(block)), 
+              method = "lm", se = FALSE, linetype = "solid", size = 0.8, alpha = 0.3) +
+  scale_color_manual(name = "Block (fit)", values = psr.fgr_colors) +
+  scale_fill_manual(values = scales::alpha(psr.fgr_colors, 0.3), guide = "none") +
+  geom_smooth(data = env_data, aes(x = fgr_sown, y = bm_total), 
+              method = "lm", se = TRUE, 
+              color = "red", fill = "red", linetype = "solid", size = 1.4, alpha = 0.3) +
+  labs(y = "Total biomass", x = "Functional group richness") +
+  theme_pubr() 
+```
+
+**4.3 Panel C – Effect of plant functional identities on SOC, TN, and shoot biomass**
+
+First, we visualize the effect of legume presence on soil and growth parameters.
+
+```{r panelC1, tidy=FALSE, message=FALSE, warning=FALSE, results='hide'}
+## Effect on SOC
+gg_leg.SOC = ggplot(env_data, aes(x = leg, y = C, fill = leg)) +
+  geom_boxplot(alpha = 0.7, width = 0.5, outlier.shape = NA) +
+  geom_jitter(aes(color = leg), width = 0.15, size = 2, alpha = 0.6) +
+  scale_fill_manual(values = leg_colors, name = "Legume presence") +
+  scale_color_manual(values = leg_colors, guide = "none") +
+  stat_compare_means(method = "t.test", label = "p.signif", hide.ns = TRUE, 
+                     comparisons = list(c("absent", "present")), 
+                     label.y = max(env_data$C, na.rm = TRUE) * 1.05) +
+  labs(x = NULL, y = "Total soil organic Carbon") +
+  theme_pubr()
+
+## Effect on TN
+gg_leg.TN = ggplot(env_data, aes(x = leg, y = N, fill = leg)) +
+  geom_boxplot(alpha = 0.7, width = 0.5, outlier.shape = NA) +
+  geom_jitter(aes(color = leg), width = 0.15, size = 2, alpha = 0.6) +
+  scale_fill_manual(values = leg_colors, name = "Legume presence") +
+  scale_color_manual(values = leg_colors, guide = "none") +
+  stat_compare_means(method = "t.test", label = "p.signif", hide.ns = TRUE, 
+                     comparisons = list(c("absent", "present")), 
+                     label.y = max(env_data$N, na.rm = TRUE) * 1.05) +
+  labs(x = NULL, y = "Total Nitrogen") +
+  theme_pubr()
+
+## Effect on BM
+gg_leg.BM = ggplot(env_data, aes(x = leg, y = bm_total, fill = leg)) +
+  geom_boxplot(alpha = 0.7, width = 0.5, outlier.shape = NA) +
+  geom_jitter(aes(color = leg), width = 0.15, size = 2, alpha = 0.6) +
+  scale_fill_manual(values = leg_colors, name = "Legume presence") +
+  scale_color_manual(values = leg_colors, guide = "none") +
+  stat_compare_means(method = "t.test", label = "p.signif", hide.ns = TRUE, 
+                     comparisons = list(c("absent", "present")), 
+                     label.y = max(env_data$bm_total, na.rm = TRUE) * 1.05) +
+  labs(x = NULL, y = "Total biomass") +
+  theme_pubr()
+```
+
+Then, we visualize the effect of grass presence on soil and growth parameters.
+
+```{r panelC2, tidy=FALSE, message=FALSE, warning=FALSE, results='hide'}
+## Effect on SOC
+gg_gra.SOC = ggplot(env_data, aes(x = gra, y = C, fill = gra)) +
+  geom_boxplot(alpha = 0.7, width = 0.5, outlier.shape = NA) +
+  geom_jitter(aes(color = gra), width = 0.15, size = 2, alpha = 0.6) +
+  scale_fill_manual(values = gra_colors, name = "Grasses presence") +
+  scale_color_manual(values = gra_colors, guide = "none") +
+  stat_compare_means(method = "t.test", label = "p.signif", hide.ns = TRUE, 
+                     comparisons = list(c("absent", "present")), 
+                     label.y = max(env_data$C, na.rm = TRUE) * 1.05) +
+  labs(x = NULL, y = "Total soil organic Carbon") +
+  theme_pubr()
+
+## Effect on TN
+gg_gra.TN = ggplot(env_data, aes(x = gra, y = N, fill = gra)) +
+  geom_boxplot(alpha = 0.7, width = 0.5, outlier.shape = NA) +
+  geom_jitter(aes(color = gra), width = 0.15, size = 2, alpha = 0.6) +
+  scale_fill_manual(values = gra_colors, name = "Grasses presence") +
+  scale_color_manual(values = gra_colors, guide = "none") +
+  stat_compare_means(method = "t.test", label = "p.signif", hide.ns = TRUE, 
+                     comparisons = list(c("absent", "present")), 
+                     label.y = max(env_data$N, na.rm = TRUE) * 1.05) +
+  labs(x = NULL, y = "Total Nitrogen") +
+  theme_pubr()
+
+## Effect on BM
+gg_gra.BM = ggplot(env_data, aes(x = gra, y = bm_total, fill = gra)) +
+  geom_boxplot(alpha = 0.7, width = 0.5, outlier.shape = NA) +
+  geom_jitter(aes(color = gra), width = 0.15, size = 2, alpha = 0.6) +
+  scale_fill_manual(values = gra_colors, name = "Grasses presence") +
+  scale_color_manual(values = gra_colors, guide = "none") +
+  stat_compare_means(method = "t.test", label = "p.signif", hide.ns = TRUE, 
+                     comparisons = list(c("absent", "present")), 
+                     label.y = max(env_data$bm_total, na.rm = TRUE) * 1.05) +
+  labs(x = NULL, y = "Total Biomass") +
+  theme_pubr()
+```
+
+### 5. Combine single plots to create Fig. 1
+
+Now that we created all sub plots, we combine them using `ggpubr::ggarrange()`. *P*-values were added manually to the resulting plot, based on the results of this script's statistics section.
+
+```{r combine, tidy=FALSE, message=FALSE, warning=FALSE, results='hide', fig.show='hide'}
+## combine individual plots of panel B into compiled plot for each parameter
+gg_panelA = ggpubr::ggarrange(
+  ncol = 1, nrow = 3, gg_psr.SOC, gg_psr.TN, gg_psr.bm, common.legend = T)
+gg_panelB = ggpubr::ggarrange(
+  ncol = 1, nrow = 3, gg_fgr.SOC, gg_fgr.TN, gg_fgr.bm, common.legend = T)
+gg_panelC1 = ggpubr::ggarrange(
+  ncol = 1, nrow = 3, gg_leg.SOC, gg_leg.TN, gg_leg.BM, common.legend = T)
+gg_panelC2 = ggpubr::ggarrange(
+  ncol = 1, nrow = 3, gg_gra.SOC, gg_gra.TN, gg_gra.BM, common.legend = T)
+
+## final figure
+gg_S1 = ggpubr::ggarrange(
+  ncol = 4, nrow = 1, gg_panelA, gg_panelB, gg_panelC1, gg_panelC2)
+```
+
+This is the final figure:
+
+```{r plot, tidy=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+gg_S1
+```

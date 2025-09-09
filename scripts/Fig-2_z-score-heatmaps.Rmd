@@ -1,0 +1,140 @@
+---
+title: "Fig. 3: Differential abundances of predicted microbial functions along the plant diversity gradient."
+author: "Jessica Finck"
+date: "2025-05-12"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This script analyses the upregulation and downregulation of functional potential of soil microbial communities, based on plant diversity. To do so, we used Spearman correlations of the z-scores to calculate differential abundances.
+
+### Pre-processing: Calculate z-scores based on raw counts
+
+Z-scores were calculated prior to analysis, and added to the respective XLSX masterfiles. Scores were calculated as:
+
+$$ z = \frac{value - \bar{x} }{{s}} $$
+
+where [x] denotes the mean, and [s] the standard deviation.
+
+```{r import, tidy=TRUE, message=FALSE, warning=FALSE, results = 'hide'}
+library(dplyr)  # data wrangling
+library(tidyr)  # data wrangling
+library(readxl) # data import
+
+## bacteria
+otu_funcz_bac <- read_excel("masterfile_bac.xlsx", sheet = "func_z") %>% as.data.frame() %>% mutate(asv = rownames(.))
+tax_func_bac <- read_excel("masterfile_bac.xlsx", sheet = "func_tax") %>% as.data.frame() %>% select(asv,trait) %>% mutate(asv = rownames(.))
+otu.tax_funcz_bac = otu_funcz_bac %>% left_join(tax_func_bac, by = "asv") %>% select(-asv) %>% relocate(trait)
+
+## fungi
+otu_funcz_fun <- read_excel("masterfile_fun.xlsx", sheet = "func_z") %>% as.data.frame() %>% mutate(asv = rownames(.))
+tax_func_fun <- read_excel("masterfile_fun.xlsx", sheet = "func_tax") %>% as.data.frame() %>% select(asv,subtrait) %>% mutate(asv = rownames(.))
+otu.tax_funcz_fun = otu_funcz_fun %>% left_join(tax_func_fun, by = "asv") %>% select(-asv) %>% relocate(subtrait)
+```
+
+Now we load the metadata, and filter them to contain only the PSR levels & sampling IDs:
+
+```{r metadata, tidy=TRUE, message=FALSE, warning=FALSE, results = 'hide'}
+data_func_bac <- read_excel("masterfile_bac.xlsx", sheet = "metadata_all") %>% as.data.frame() %>% select(sID, psr)
+
+data_func_fun <- read_excel("masterfile_fun.xlsx", sheet = "metadata_all") %>% as.data.frame() %>% select(sID, psr)
+```
+
+### Spearman-based correlation matrix
+
+**1. Calculate correlation matrices**
+
+First, we transpose & merge the ASV and taxa tables with the metadata by their shared sample ID (sID) column:
+
+```{r transpose, tidy=TRUE, message=FALSE, warning=FALSE, results = 'hide'}
+library(dplyr)
+library(janitor)
+
+## bacteria
+otu.tax.z.t_bac = otu.tax_funcz_bac %>% t() %>% row_to_names(1) %>% as.data.frame()
+otu.tax.z.t_bac$sID <- rownames(otu.tax.z.t_bac)
+merged_func.z_bac = left_join(as.data.frame(otu.tax.z.t_bac), data_func_bac, by = "sID") %>% relocate(sID, psr) %>% mutate(across(-c(sID, psr), as.numeric))
+
+## fungi
+otu.tax.z.t_fun = otu.tax_funcz_fun %>% t() %>% row_to_names(1) %>% as.data.frame()
+otu.tax.z.t_fun$sID <- rownames(otu.tax.z.t_fun) 
+merged_func.z_fun = left_join(as.data.frame(otu.tax.z.t_fun), data_func_fun, by = "sID") %>% relocate(sID, psr) %>% mutate(across(-c(sID, psr), as.numeric))
+```
+
+Then, we get the column names of the functions from FAPROTAX and FunGUILD, excluding the sID and treatment (PSR) column, followed by isolating unique treatment (PSR) names.
+
+```{r filter, tidy=TRUE, message=FALSE, warning=FALSE, results = 'hide'}
+## bacteria
+z_matrix_treatment_bac <- merged_func.z_bac %>% 
+  select(-sID) %>%  # Remove sample IDs, keep psr and OTU columns
+  group_by(psr) %>%  # Group by treatment
+  summarise(across(everything(), mean, na.rm = F))  # Compute mean z-score per OTU
+
+## fungi
+z_matrix_treatment_fun <- merged_func.z_fun %>% 
+  select(-sID) %>%  # Remove sample IDs, keep psr and OTU columns
+  group_by(psr) %>%  # Group by treatment
+  summarise(across(everything(), mean, na.rm = F))  # Compute mean z-score per OTU
+
+library(tibble)
+z_matrix_bac <- z_matrix_treatment_bac %>%
+  column_to_rownames(var = "psr") %>%  # Set treatment as row names
+  t()  # Transpose so OTUs become rows, and treatments become columns
+
+z_matrix_fun <- z_matrix_treatment_fun %>%
+  column_to_rownames(var = "psr") %>%  # Set treatment as row names
+  t()  # Transpose so OTUs become rows, and treatments become columns
+```
+
+Export the correlation matrices.
+
+```{r cor_save, tidy=TRUE, message=FALSE, warning=FALSE, results = 'hide'}
+write.csv(z_matrix_bac, "z_matrix_bac.csv", row.names = TRUE)
+write.csv(z_matrix_fun, "z_matrix_fun.csv", row.names = TRUE)
+```
+
+**2. Plot Spearman correlation as heatmap**
+
+Now, we first reimport the z-score correlation matrices we just exported.
+
+```{r cor_reimport, tidy=TRUE, message=FALSE, warning=FALSE, results = 'hide'}
+z_func_bac <- read.csv("z_matrix_bac.csv", header = T, check.names = F, row.names = 1, sep = ",") %>% as.data.frame()
+
+z_func_fun <- read.csv("z_matrix_fun.csv", header = T, check.names = F, row.names = 1, sep = ",") %>% as.data.frame()
+```
+
+Then, we filter the functions we want to keep.
+
+```{r cor_filter, tidy=TRUE, message=FALSE, warning=FALSE, results='hide'}
+library(dplyr)
+
+##bacteria
+z_func_bac = z_func_bac %>% t() %>% as.data.frame() %>%
+  select(multifunctionality, chemoheterotrophy, aromatic_compound_degradation, fermentation, phototrophy, N_mobilization) %>%
+  rename(C_fixation = phototrophy) %>% t()
+
+## fungi
+z_func_fun = z_func_fun %>% t() %>% as.data.frame() %>%
+  select(multifunctionality, total_agonistic_functions, total_beneficial_functions, ECM, AMF, saprotroph, litter_saprotrophy, plant_saprotroph) %>%
+  rename(agonism = total_agonistic_functions) %>%
+  rename(mutualism = total_beneficial_functions) %>% 
+  rename(plant_saprotrophy = plant_saprotroph) %>% t()
+```
+
+Now, we plot.
+
+```{r cor_plot, tidy=TRUE, message=FALSE, warning=FALSE, results = 'hide'}
+library(pheatmap)
+library(gridExtra)
+
+z_plot_bac = pheatmap(z_func_bac, cluster_rows = T, cluster_cols = F, scale = "row", cellwidth = 15, cellheigh = 20, fontsize = 10, color = colorRampPalette(c("#A33333", "white", "#073647"))(15), angle_col = 0)
+
+z_plot_fun = pheatmap(z_func_fun, cluster_rows = T, cluster_cols = F, scale = "row", cellwidth = 15, cellheigh = 15, fontsize = 10, color = colorRampPalette(c("#A33333", "white", "#073647"))(15), angle_col = 0)
+
+grid.arrange(z_plot_bac$gtable, z_plot_fun$gtable, ncol = 2)
+```
