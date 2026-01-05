@@ -1,5 +1,5 @@
 ---
-title: "Fig. 1: Relationship between soil carbon, nitrogen, and plant biomass with plant diversity."
+title: "Fig. S1: Relationship between soil carbon, nitrogen, and plant biomass with plant diversity."
 author: "Jessica Finck"
 date: "2025-05-12"
 output:
@@ -393,3 +393,4 @@ This is the final figure:
 ```{r plot, tidy=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
 gg_S1
 ```
+
