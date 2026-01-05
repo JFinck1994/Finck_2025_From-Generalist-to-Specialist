@@ -1,5 +1,5 @@
 ---
-title: "Fig. 2: Plant diversity drives beta diversity changes in the bacterial and fungal communities."
+title: "Fig. 1: Plant diversity drives beta diversity changes in the bacterial and fungal communities."
 author: "Jessica Finck"
 date: "2025-05-12"
 output:
@@ -394,3 +394,4 @@ print(get_permanova_stats(perm.F2))
 ```
 
 Afterwards, we created an illustration for Figure 2 panel B in Inkscape, visually summarizing the output of our PERMANOVA tests.
+
