@@ -1,5 +1,5 @@
 ---
-title: "Fig. 3: Plant community structure drives fungal community composition."
+title: "Fig. S2: Plant community structure drives fungal community composition."
 author: "Jessica Finck"
 date: "2025-05-12"
 output:
@@ -577,3 +577,4 @@ ggpubr::ggarrange(
   gg.count_bac, gg.count_fun, ncol = 2, nrow = 1, 
   common.legend = T, align = "h", labels = c("A", "B"))
 ```
+
