@@ -1,0 +1,604 @@
+---
+title: "Fig. S3: Taxa barplot representing most representative taxa composing Faprotax & Funguild-derived functional groups."
+author: "Jessica Finck"
+date: "2025-11-30"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+set.seed(123)
+```
+
+This script uses the taxa assignments derived from the FAPROTAX and FUNGuild-derived functional predictions to analyse the contribution of representative taxa to functional groups of choice.
+
+### Pre-processing: Preparing the `phyloseq` objects from raw data
+
+For this analysis we use `phyloseq` objects which we created from our ASV and taxa tables, and metadata.
+
+First, we imported our data into R.
+
+```{r import, tidy=TRUE, message=FALSE, warning=FALSE, results='hide', echo=FALSE}
+library(readxl) # import xlsx files
+library(dplyr)  # data wrangling
+library(ape)    # import nwk files
+
+# bacteria
+otu_bac <- read_excel("masterfile_bac.xlsx", sheet = "asv_table") %>% as.data.frame()
+tax_bac <- read_excel("masterfile_bac.xlsx", sheet = "tax_table") %>% as.data.frame()
+data_bac <- read_excel("masterfile_bac.xlsx", sheet = "metadata_all") %>% as.data.frame()
+tree_bac <- ape::read.tree("tree_dada2_bac.nwk")
+
+# fungi
+otu_fun <- read_excel("masterfile_fun.xlsx", sheet = "asv_table") %>% as.data.frame()
+tax_fun <- read_excel("masterfile_fun.xlsx", sheet = "tax_table") %>% as.data.frame()
+data_fun <- read_excel("masterfile_fun.xlsx", sheet = "metadata_all") %>% as.data.frame()
+tree_fun <- ape::read.tree("tree_dada2_fun.nwk")
+```
+
+Then, we formatted the variable classes.
+
+```{r format, tidy=TRUE, message=FALSE, warning=FALSE, results='hide', echo=FALSE}
+# bacteria 
+data_bac = data_bac %>% mutate(leg_num = leg)  
+data_bac$leg_num = gsub('yes', '1', data_bac$leg_num)
+data_bac$leg_num = gsub('no', '0', data_bac$leg_num)
+data_bac$leg_num <- as.numeric(data_bac$leg_num)
+
+data_bac = data_bac %>% mutate(gra_num = gra)  
+data_bac$gra_num = gsub('yes', '1', data_bac$gra_num)
+data_bac$gra_num = gsub('no', '0', data_bac$gra_num)
+data_bac$gra_num <- as.numeric(data_bac$gra_num)
+
+data_bac = data_bac %>% mutate(monocult_num = monocult)  
+data_bac$monocult_num = gsub('yes', '1', data_bac$monocult_num)
+data_bac$monocult_num = gsub('no', '0', data_bac$monocult_num)
+data_bac$monocult_num <- as.numeric(data_bac$monocult_num)
+
+data_bac = data_bac %>% mutate(plot_num = plot) 
+data_bac$plot_num <- as.numeric(data_bac$plot_num)
+
+data_bac$psr <- as.numeric(data_bac$psr)
+data_bac$div_level <- as.factor(data_bac$div_level)
+data_bac$plot <- as.factor(data_bac$plot)
+data_bac$the <- as.factor(data_bac$the)
+data_bac$she <- as.factor(data_bac$she)
+data_bac$leg <- as.factor(data_bac$leg)
+data_bac$gra <- as.factor(data_bac$gra)
+
+# fungi
+data_fun = data_fun %>% mutate(leg_num = leg)  
+data_fun$leg_num = gsub('yes', '1', data_fun$leg_num)
+data_fun$leg_num = gsub('no', '0', data_fun$leg_num)
+data_fun$leg_num <- as.numeric(data_fun$leg_num)
+
+data_fun = data_fun %>% mutate(gra_num = gra)  
+data_fun$gra_num = gsub('yes', '1', data_fun$gra_num)
+data_fun$gra_num = gsub('no', '0', data_fun$gra_num)
+data_fun$gra_num <- as.numeric(data_fun$gra_num)
+
+data_fun = data_fun %>% mutate(monocult_num = monocult)  
+data_fun$monocult_num = gsub('yes', '1', data_fun$monocult_num)
+data_fun$monocult_num = gsub('no', '0', data_fun$monocult_num)
+data_fun$monocult_num <- as.numeric(data_fun$monocult_num)
+
+data_fun = data_fun %>% mutate(plot_num = plot) 
+data_fun$plot_num <- as.numeric(data_fun$plot_num)
+
+data_fun$psr <- as.numeric(data_fun$psr)
+data_fun$div_level <- as.factor(data_fun$div_level)
+data_fun$plot <- as.factor(data_fun$plot)
+data_fun$the <- as.factor(data_fun$the)
+data_fun$she <- as.factor(data_fun$she)
+data_fun$leg <- as.factor(data_fun$leg)
+data_fun$gra <- as.factor(data_fun$gra)
+```
+
+Followed by adjusting the taxa names and defining the row names.
+
+```{r names, tidy=TRUE, message=FALSE, warning=FALSE, results='hide', echo=FALSE}
+# bacteria
+tax_bac$Kingdom = gsub("d__","",as.character(tax_bac$Kingdom))
+tax_bac$Phylum = gsub("p__","",as.character(tax_bac$Phylum))
+tax_bac$Class = gsub("c__","",as.character(tax_bac$Class))
+tax_bac$Order = gsub("o__","",as.character(tax_bac$Order))
+tax_bac$Family = gsub("f__","",as.character(tax_bac$Family))
+tax_bac$Genus = gsub("g__","",as.character(tax_bac$Genus))
+tax_bac$Species = gsub("s__","",as.character(tax_bac$Species))
+
+otu_bac <- otu_bac %>% tibble::column_to_rownames("asv")
+tax_bac <- tax_bac %>% tibble::column_to_rownames("asv")
+data_bac <- data_bac %>% tibble::column_to_rownames("sID")
+
+# fungi
+tax_fun$Kingdom = gsub("k__","",as.character(tax_fun$Kingdom))
+tax_fun$Phylum = gsub("p__","",as.character(tax_fun$Phylum))
+tax_fun$Class = gsub("c__","",as.character(tax_fun$Class))
+tax_fun$Order = gsub("o__","",as.character(tax_fun$Order))
+tax_fun$Family = gsub("f__","",as.character(tax_fun$Family))
+tax_fun$Genus = gsub("g__","",as.character(tax_fun$Genus))
+tax_fun$Species = gsub("s__","",as.character(tax_fun$Species))
+
+otu_fun <- otu_fun %>% tibble::column_to_rownames("asv")
+tax_fun <- tax_fun %>% tibble::column_to_rownames("asv")
+data_fun <- data_fun %>% tibble::column_to_rownames("sID")
+```
+
+And finally writing the `phyloseq` objects.
+
+```{r ps, tidy=TRUE, message=FALSE, warning=FALSE, results='hide', echo=FALSE}
+library(phyloseq)
+
+# bacteria 
+otu_bac <- as.matrix(otu_bac)
+tax_bac <- as.matrix(tax_bac)
+
+OTU_B = phyloseq::otu_table(otu_bac, taxa_are_rows = T)
+TAX_B = phyloseq::tax_table(tax_bac)
+samples_B = phyloseq::sample_data(data_bac)
+ps.bac <- phyloseq::phyloseq(OTU_B, TAX_B, samples_B)
+tree_B = phyloseq::phy_tree(tree_bac)
+ps.bac <- phyloseq::phyloseq(OTU_B, TAX_B, samples_B, tree_B)
+
+# fungi
+otu_fun <- as.matrix(otu_fun)
+tax_fun <- as.matrix(tax_fun)
+
+OTU_F = phyloseq::otu_table(otu_fun, taxa_are_rows = T)
+TAX_F = phyloseq::tax_table(tax_fun)
+samples_F = phyloseq::sample_data(data_fun)
+ps.fun <- phyloseq::phyloseq(OTU_F, TAX_F, samples_F)
+tree_F = phyloseq::phy_tree(tree_fun)
+ps.fun <- phyloseq::phyloseq(OTU_F, TAX_F, samples_F, tree_F)
+```
+
+After writing the phyloseq objects based on the raw counts, we then cleaned up the data using the `microeco` package (i.e., to tidy the taxonomy and filter out chloroplasts and non-bacterial, non-archaeal and non-fungal sequences).
+
+```{r tidy, tidy=TRUE, message=FALSE, warning=FALSE, results='hide', echo=FALSE}
+library(microeco)
+library(file2meco)
+
+# convert to microeco (meco) object
+meco.fun = phyloseq2meco(ps.fun)
+meco.bac = phyloseq2meco(ps.bac)
+
+# tidy taxonomy 
+meco.bac$tax_table %>% 
+  base::subset(Kingdom == "k__Archaea" | Kingdom == "k__Bacteria")
+meco.bac$filter_pollution(taxa = c("mitochondria", "chloroplast"))
+meco.bac$tidy_dataset()                                                         
+
+meco.fun$tax_table %>% 
+  base::subset(Kingdom == "k__Fungi")
+meco.fun$filter_pollution(taxa = c("mitochondria", "chloroplast"))
+meco.fun$tidy_dataset()
+
+# convert back to phyloseq (ps) object
+ps.meco.bac = meco2phyloseq(meco.bac)
+ps.meco.fun = meco2phyloseq(meco.fun)
+```
+
+Lastly, we TSS-transformed, and CLR-normalized the tidied `phyloseq` object to use for follow-up analyses:
+
+```{r normalize, tidy=TRUE, message=FALSE, warning=FALSE, results='hide', echo=FALSE}
+library(microbiomeMarker) # TSS normalization
+library(microbiome)       # CLR transformation
+library(dplyr)            # data wrangling
+
+ps.bac.tss = ps.meco.bac %>% microbiomeMarker::normalize(method = "TSS")
+ps.fun.tss = ps.meco.fun %>% microbiomeMarker::normalize(method = "TSS")
+ps.bac.norm = ps.meco.bac %>% microbiomeMarker::normalize(method = "TSS") %>% microbiome::transform('clr')
+ps.fun.norm = ps.meco.fun %>% microbiomeMarker::normalize(method = "TSS") %>% microbiome::transform('clr')
+```
+
+### **1. Extract functional group-specific taxa** 
+
+Using the FAPROTAX/FUNGuild derived "presence/absence" table, which denotes which ASVs are predicted to have which function, we first extract all representative taxa for functional groups of choice.
+
+**1.1 Pre-requisites: Load packages & data**
+
+```{r prereq, tidy=FALSE, message=FALSE, warning=FALSE, results='hide'}
+## Required ps objects (TSS & CLR normalized)
+ps.bac.norm
+ps.fun.norm
+
+## Load all libraries for script
+library(phyloseq)
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(broom)
+library(tibble)
+library(ggplot2)
+library(ComplexHeatmap)  # for heatmap plotting
+library(circlize)        # color scaling
+
+## Import func_presence_absence table (used to infer taxa with function x)
+library(readxl)
+func_table_bac <- read.csv("bac_func-presence-absence.csv", header = TRUE, stringsAsFactors = FALSE, row.names = 1)
+
+func_table_fun <- read.csv("fun_FUNg_func-presence-absence.csv", header = TRUE, stringsAsFactors = FALSE, row.names = 1)
+```
+
+After importing the presence/absence table, we first define our functional groups, the same as we did for our z-score heatmaps, to keep it consistent.
+
+```{r define, tidy=FALSE, message=FALSE, warning=FALSE}
+## Define composite functions as done for z-score heatmap
+## ~ N mobilization (ureolysis + nitrate reduction + nitrogen fixation)
+func_table_bac <- func_table_bac %>% mutate(total_Nmob = as.numeric(ureolysis == 1 | nitrate_reduction == 1 | nitrogen_fixation == 1))
+
+## ~ C fixation (phototrophy)
+func_table_bac <- func_table_bac %>% mutate(total_Cfix = as.numeric(phototrophy == 1))
+
+## ~ Mutualism ()
+func_table_fun <- func_table_fun %>% mutate(total_mut_pl = as.numeric(
+  Endomycorrhizal == 1 | Arbuscular.Mycorrhizal == 1 | Endomycorrhizal == 1 | Epiphyte == 1 | 
+    Ericoid.Mycorrhizal == 1 | Orchid.Mycorrhizal == 1 | Lichenized == 1))
+
+## ~ Antagonism ()
+func_table_fun <- func_table_fun %>% mutate(total_par = as.numeric(
+  Bryophyte.Parasite == 1| Plant.Parasite == 1	| Lichen.Parasite == 1	| Fungal.Parasite == 1))
+
+## ~ Plant saprotrophy
+func_table_fun <- func_table_fun %>% mutate(sapro_leaf = as.numeric(Leaf.Saprotroph == 1))
+
+## ~ Litter saprotrophy
+func_table_fun <- func_table_fun %>% mutate(sapro_plant = as.numeric(Plant.Saprotroph == 1))
+
+## ~ ECM
+func_table_fun <- func_table_fun %>% mutate(ecm = as.numeric(Endomycorrhizal == 1))
+
+## ~ AMF
+func_table_fun <- func_table_fun %>% mutate(amf = as.numeric(Arbuscular.Mycorrhizal == 1))
+```
+
+**1.2 Write function to identify parameter-responsive taxa within each functional group**
+
+Now we write a custom function to identify taxa statistically significant responsive taxa within the functional group, based on our chosen test parameter. This function let's you input:
+
+-   source table with functions (see step 1.1)
+
+-   respective ps object
+
+-   functional group (i.e. AMF)
+
+-   taxonomic rank (i.e. Class)
+
+-   p value cutoff (i.e. 0.05 á \*)
+
+```{r func1, tidy=TRUE, message=FALSE, warning=FALSE, results='hide'}
+## Write function to analyze PSR-responsive taxa
+analyze_psr_responsive_taxa <- function(guild_table,
+                                        phy,
+                                        guild,
+                                        rank,                
+                                        psr_var,
+                                        p_cutoff) {
+  
+  # --- Check inputs ---
+  if (!guild %in% colnames(guild_table)) stop("Guild not found in guild_table.")
+  if (!rank %in% colnames(tax_table(phy))) stop("Rank not found in taxonomy table.")
+  
+  target_asvs <- rownames(guild_table)[guild_table[[guild]] == 1]
+  if (length(target_asvs) == 0) stop("No ASVs found for this guild.")
+  
+  # --- Prune phyloseq ---
+  phy_filt <- prune_taxa(target_asvs, phy)
+  phy_rank <- tax_glom(phy_filt, taxrank = rank)
+  
+  # --- Extract abundance & metadata ---
+  otu_df <- as.data.frame(t(otu_table(phy_rank))) %>% 
+    rownames_to_column("SampleID") %>%
+    pivot_longer(cols = -SampleID, names_to = "TaxonID", values_to = "Abundance") %>%
+    left_join(as.data.frame(tax_table(phy_rank)) %>% rownames_to_column("TaxonID"), by = "TaxonID") %>%
+    left_join(as.data.frame(sample_data(phy_rank)) %>% rownames_to_column("SampleID"), by = "SampleID")
+  
+  if (!(psr_var %in% colnames(otu_df))) stop("PSR variable not found in sample_data.")
+  
+  # --- Linear model per taxon ---
+  results <- otu_df %>%
+    group_by(!!sym(rank)) %>%
+    summarise(
+      model = list(lm(Abundance ~ get(psr_var), data = cur_data())),
+      tidy = list(broom::tidy(model[[1]]))
+    ) %>%
+    unnest(tidy) %>%
+    filter(term == paste0("get(psr_var)")) %>%
+    select(!!sym(rank), estimate, std.error, statistic, p.value) %>%
+    mutate(direction = ifelse(estimate > 0, "increases", "decreases")) %>%
+    filter(p.value <= p_cutoff)   # significant only
+  
+  results$guild <- guild
+  return(results)
+}
+
+```
+
+We can then use the function exploratively to check significantly responsive taxa at various taxonomic ranks:
+
+```{r func1 apply, tidy=TRUE, message=FALSE, warning=FALSE}
+## Fungi
+analyze_psr_responsive_taxa(func_table_fun, ps.fun.norm, "sapro_leaf", "Class", psr_var = "lg_psr", p_cutoff = 0.05)
+
+analyze_psr_responsive_taxa(func_table_fun, ps.fun.norm, "sapro_plant", "Class", psr_var = "lg_psr", p_cutoff = 0.05)
+
+analyze_psr_responsive_taxa(func_table_fun, ps.fun.norm, "ecm", "Class", psr_var = "lg_psr", p_cutoff = 0.05)
+
+analyze_psr_responsive_taxa(func_table_fun, ps.fun.norm, "amf", "Class", psr_var = "lg_psr", p_cutoff = 0.05)
+
+analyze_psr_responsive_taxa(func_table_fun, ps.fun.norm, "total_par", "Genus", psr_var = "lg_psr", p_cutoff = 0.05)
+
+analyze_psr_responsive_taxa(func_table_fun, ps.fun.norm, "total_mut_pl", "Genus", psr_var = "lg_psr", p_cutoff = 0.05)
+
+## Bacteria
+analyze_psr_responsive_taxa(func_table_bac, ps.bac.norm, "total_Nmob", "Genus", psr_var = "lg_psr", p_cutoff = 0.05)
+
+analyze_psr_responsive_taxa(func_table_bac, ps.bac.norm, "chemoheterotrophy", "Genus", psr_var = "lg_psr", p_cutoff = 0.05)
+
+analyze_psr_responsive_taxa(func_table_bac, ps.bac.norm, "total_Cfix", "Genus", psr_var = "lg_psr", p_cutoff = 0.05)
+
+analyze_psr_responsive_taxa(func_table_bac, ps.bac.norm, "aromatic_compound_degradation", "Class", psr_var = "lg_psr", p_cutoff = 0.05)
+
+analyze_psr_responsive_taxa(func_table_bac, ps.bac.norm, "fermentation", "Genus", psr_var = "lg_psr", p_cutoff = 0.05)
+```
+
+### **2. Plot stacked barplot of each functional groups most responsive taxa** 
+
+**2.1 Write function to plot responsive taxa within each functional group**
+
+We will use another custom built function to plot our stacked barplots in a uniform manner. This function is a deviation from the previous function. This means you are able to specifiy:
+
+-   source table with functions (see step 1.1)
+
+-   respective ps object
+
+-   functional group (i.e. AMF)
+
+-   taxonomic rank (i.e. Class)
+
+-   parameter of choice (i.e. plant diversity level)
+
+-   graph title (i.e. "AMF")
+
+This function creates a stacked barplot at a chosen taxonomic rank, showing each contributor's mean %RA (% relative abundance) per parameter level (i.e. for plant diversity at each individual PSR). Colors are defined within the function manually based on the 32-color Glasbey palette.
+
+```{r func2, tidy=TRUE, message=FALSE, warning=FALSE}
+library(phyloseq)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(tibble)
+
+plot_guild_taxa_barplot_mean <- function(guild_table,
+                                         phy,
+                                         guild,
+                                         rank,
+                                         psr_var, guild_title = NULL) {
+  
+  # -----------------------------
+  # 1. Verify guild exists
+  # -----------------------------
+  if (!guild %in% colnames(guild_table)) {
+    stop(paste0("Guild '", guild, "' not found in guild_table."))
+  }
+  
+  # -----------------------------
+  # 2. Extract ASVs belonging to this guild
+  # -----------------------------
+  target_asvs <- rownames(guild_table)[guild_table[[guild]] == 1]
+  
+  if (length(target_asvs) == 0) {
+    stop(paste0("No ASVs found for guild '", guild, "'."))
+  }
+  
+  # -----------------------------
+  # 3. Prune phyloseq object to selected ASVs
+  # -----------------------------
+  phy_filt <- prune_taxa(target_asvs, phy)
+  
+  # -----------------------------
+  # 4. Aggregate to chosen taxonomy level
+  # -----------------------------
+  if (!rank %in% colnames(tax_table(phy))) {
+    stop(paste0("Taxonomic rank '", rank, "' not found in taxonomy table."))
+  }
+  
+  phy_rank <- tax_glom(phy_filt, taxrank = rank)
+  
+  # -----------------------------
+  # 5. Convert phyloseq to long format for ggplot
+  # -----------------------------
+  otu_long <- psmelt(phy_rank)
+  # -----------------------------
+  # 5b. Clean taxon names (remove prefixes like g__, c__, o__, f__, p__)
+  #      and convert empty strings to NA BEFORE aggregation
+  # -----------------------------
+  clean_name <- function(x) {
+    # remove typical prefixes like "g__", "c__", "o__", "f__", "p__"
+    x_clean <- gsub("^[a-z]__+", "", as.character(x))
+    # trim whitespace
+    x_clean <- trimws(x_clean)
+    # convert empty strings to NA
+    x_clean[ x_clean == "" ] <- NA
+    return(x_clean)
+  }
+  
+  otu_long[[rank]] <- clean_name(otu_long[[rank]])
+  
+  # -----------------------------
+  # 6. Aggregate mean %RA per psr group (and keep empty combinations as NA)
+  # -----------------------------
+  library(dplyr)
+  library(tidyr)
+  
+  # ensure psr_var is treated as factor for grouping
+  otu_long[[psr_var]] <- as.factor(otu_long[[psr_var]])
+  
+  # compute mean %RA for observed combinations
+  otu_agg <- otu_long %>%
+    group_by(across(all_of(c(psr_var, rank)))) %>%
+    summarise(mean_RA = mean(Abundance * 100), .groups = "drop")
+  
+  # get all levels of psr and unique taxa (including NA taxa)
+  psr_levels <- levels(otu_long[[psr_var]])
+  taxa_levels <- unique(otu_long[[rank]])         # includes NA
+  
+  # complete the table so missing combinations are explicit (mean_RA = NA)
+  # use tidyr::complete; convert rank vector to character for complete
+  otu_agg <- otu_agg %>%
+    mutate(!!rank := as.character(.data[[rank]])) %>%
+    complete(
+      !!sym(psr_var) := factor(psr_levels, levels = psr_levels),
+      !!sym(rank) := sort(unique(taxa_levels)),
+      fill = list(mean_RA = NA)
+    ) %>%
+    arrange(!!sym(psr_var), !!sym(rank))
+  
+  # convert psr_var back to factor (if needed) and ensure rank column is character
+  otu_agg[[psr_var]] <- factor(otu_agg[[psr_var]], levels = psr_levels)
+  otu_agg[[rank]] <- as.character(otu_agg[[rank]])
+  
+  
+  # -----------------------------
+  # 7. Set up color palette
+  # -----------------------------
+  taxa_list <- unique(otu_agg[[rank]])
+  n_taxa <- length(taxa_list)
+  
+  # Custom 32-color Glasbey palette (in correct order)
+  glasbey32 <- c(
+    "#0000FF", "#FF0000", "#00FF00", "#000033", "#FF00B6", "#005300",
+    "#FFD300", "#009FFF", "#9A4D42", "#00FFBE", "#783FC1", "#1F9698",
+    "#FFACFD", "#B1CC71", "#F1085C", "#FE8F42", "#DD00FF", "#201A01",
+    "#720055", "#766C95", "#02AD24", "#C8FF00", "#886C00", "#FFB79F",
+    "#858567", "#A10300", "#14F9FF", "#00479E", "#DC5E93", "#93D4FF",
+    "#004CFF", "#F2F318"
+  )
+  
+  # If more taxa than available colors, repeat palette
+  if (n_taxa > length(glasbey32)) {
+    color_vec <- rep(glasbey32, length.out = n_taxa)
+  } else {
+    color_vec <- glasbey32[1:n_taxa]
+  }
+  
+  names(color_vec) <- taxa_list
+  
+  # -----------------------------
+  # 9. Guild title modifier
+  # -----------------------------
+    # If no custom title provided, use the guild name
+  if (is.null(guild_title)) {
+    guild_title <- guild
+  }
+  
+  # -----------------------------
+  # 9. Plot stacked bar chart (mean %RA per psr group)
+  # -----------------------------
+  p <- ggplot(otu_agg,
+              aes(x = .data[[psr_var]],
+                  y = mean_RA,        
+                  fill = .data[[rank]])) +
+    geom_bar(stat = "identity", position = "stack") +
+    scale_y_continuous(labels = function(x) paste0(x, "%")) +
+    scale_fill_manual(values = color_vec) +
+    ggpubr::theme_pubr() +
+    theme(
+      axis.text.x = element_text(angle = 0, hjust = 1), 
+      strip.text = element_text(size = 10), 
+      legend.position = "right", 
+      legend.text = element_text(face = "italic"),
+      plot.title = element_text(face = "bold", size = 14),
+      panel.border = element_rect(colour = "black", fill = NA)
+    ) + 
+    labs(
+      title = guild_title,
+      y = "Mean %RA",
+      x = "Plant species richness",    # <---- custom label
+      fill = rank
+    )
+    
+  
+  return(p)
+}
+
+```
+
+**2.2 Plot panels & assemble figure**
+
+Now we can apply the function to define our stacked barplots, and use `patchwork` and `cowplot` to assemble the summary figure.
+
+First, let's define the individual plots as objects:
+
+```{r func2 apply, tidy=TRUE, message=FALSE, warning=FALSE}
+## Fungi
+f1 <- plot_guild_taxa_barplot_mean(func_table_fun, ps.fun.tss, "amf", "Genus", psr_var = "psr", guild_title = "AMF")
+f2 <- plot_guild_taxa_barplot_mean(func_table_fun, ps.fun.tss, "ecm", "Family", psr_var = "psr", guild_title = "ECM")
+f3 <- plot_guild_taxa_barplot_mean(func_table_fun, ps.fun.tss, "total_par", "Family", psr_var = "psr", guild_title = "Antagonistic fungi")
+f4 <- plot_guild_taxa_barplot_mean(func_table_fun, ps.fun.tss, "total_mut_pl", "Genus", psr_var = "psr", guild_title = "Mutualistic fungi")
+f5 <- plot_guild_taxa_barplot_mean(func_table_fun, ps.fun.tss, "sapro_plant", "Genus", psr_var = "psr", guild_title = "Litter saprotrophic")
+f6 <- plot_guild_taxa_barplot_mean(func_table_fun, ps.fun.tss, "sapro_leaf", "Genus", psr_var = "psr", guild_title = "Leaf saprotrophic")
+
+## Bacteria
+b1 <- plot_guild_taxa_barplot_mean(func_table_bac, ps.bac.tss, "fermentation", "Genus", psr_var = "psr", guild_title = "Fermentation")
+b2 <- plot_guild_taxa_barplot_mean(func_table_bac, ps.bac.tss, "aromatic_compound_degradation", "Genus", psr_var = "psr", guild_title = "Aromatic compound degradation")
+b3 <- plot_guild_taxa_barplot_mean(func_table_bac, ps.bac.tss, "chemoheterotrophy", "Order", psr_var = "psr", guild_title = "Chemoheterotrophy")
+b4 <- plot_guild_taxa_barplot_mean(func_table_bac, ps.bac.tss, "total_Nmob", "Genus", psr_var = "psr", guild_title = "Nitrogen mobilization")
+```
+
+Now we can use the aforementioned packages to assemble the figure.
+
+Note: `patchwork` and `cowplot` love to mess up the legend grob to ggplot2 conversion, so we will write an additional helper function to help with this.
+
+```{r assemble, tidy=TRUE, message=FALSE, warning=FALSE}
+library(patchwork)
+library(cowplot)
+library(ggplotify)
+
+# Helper function: extract legend grob
+get_legend_grob <- function(p) {
+  cowplot::get_legend(p + theme(legend.position = "right"))
+}
+
+# Helper function: convert legend grob -> ggplot (wrap in ggplot object)
+legend_to_ggplot <- function(leg_grob) {
+  ggplotify::as.ggplot(leg_grob)
+}
+
+# Helper function: build side-by-side (plot | legend) with flexible legend width
+plot_with_legend <- function(p, legend_width = 0.28) {
+  leg_grob <- get_legend_grob(p)
+  leg_plot <- legend_to_ggplot(leg_grob)
+  
+  # left: main plot without legend; right: legend wrapped as ggplot
+  left <- p + theme(legend.position = "none")
+  right <- leg_plot
+  
+  cowplot::plot_grid(
+    left,
+    right,
+    nrow = 1,
+    rel_widths = c(1, legend_width),
+    align = "h"
+  )
+}
+
+## Build figure panels 
+panel_f1 <- plot_with_legend(f1)
+panel_f2 <- plot_with_legend(f2)
+panel_f3 <- plot_with_legend(f3)
+panel_f4 <- plot_with_legend(f4)
+
+panel_b1 <- plot_with_legend(b1)
+panel_b2 <- plot_with_legend(b2)
+panel_b3 <- plot_with_legend(b3)
+panel_b4 <- plot_with_legend(b4)
+
+## Stack vertically, panels aligned
+cowplot::plot_grid(panel_f1, panel_f4, panel_f2, panel_f3, ncol = 2, nrow= 2, align = "v", axis = "lr")
+cowplot::plot_grid(panel_b3, panel_b1, panel_b2, panel_b4, ncol = 2, nrow= 2, align = "v", axis = "lr")
+```
+
+Ta-da! Now you can simply export the plots and push their legends around in Inkscape to fit your needs. Note that the panels are already in uniform design and aligned vertically and horizontally.
