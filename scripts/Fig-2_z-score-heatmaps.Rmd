@@ -1,5 +1,5 @@
 ---
-title: "Fig. 3: Differential abundances of predicted microbial functions along the plant diversity gradient."
+title: "Fig. 2: Differential abundances of predicted microbial functions along the plant diversity gradient."
 author: "Jessica Finck"
 date: "2025-05-12"
 output:
@@ -138,3 +138,4 @@ z_plot_fun = pheatmap(z_func_fun, cluster_rows = T, cluster_cols = F, scale = "r
 
 grid.arrange(z_plot_bac$gtable, z_plot_fun$gtable, ncol = 2)
 ```
+
